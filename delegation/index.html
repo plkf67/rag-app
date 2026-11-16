@@ -1,0 +1,556 @@
+<title>Carnet de délégation</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout : bandeau mois + tableau de bord des mandats, puis saisie et relevé du mois ; une colonne sur téléphone. */
+:root{
+  --bg:#f3f4f6; --surface:#ffffff; --sunk:#e8eaee; --line:#d5d9e0;
+  --fg:#16191f; --muted:#5b6270; --accent:#c8102e; --accent-fg:#ffffff;
+  --ok:#1f7a4d; --warn:#a75d00; --bad:#b3261e; --info:#2f5aa8;
+  --bar:#c8102e; --bar-report:#e98a98; --bar-track:#e3e6eb;
+  --f-display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111318; --surface:#1a1d24; --sunk:#22262f; --line:#323743;
+  --fg:#eceef2; --muted:#9aa2b1; --accent:#ff4d5e; --accent-fg:#16080a;
+  --ok:#4fc28a; --warn:#f0a441; --bad:#ff7a70; --info:#7fa6f0;
+  --bar:#ff4d5e; --bar-report:#a3404c; --bar-track:#2a2f3a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111318; --surface:#1a1d24; --sunk:#22262f; --line:#323743;
+  --fg:#eceef2; --muted:#9aa2b1; --accent:#ff4d5e; --accent-fg:#16080a;
+  --ok:#4fc28a; --warn:#f0a441; --bad:#ff7a70; --info:#7fa6f0;
+  --bar:#ff4d5e; --bar-report:#a3404c; --bar-track:#2a2f3a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:1.55rem;font-weight:800}
+h2{font-size:1.15rem;font-weight:700}
+.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:8px 14px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 8px}
+.btn.ghost:hover{color:var(--fg)}
+.btn.small{padding:4px 10px;font-size:.85rem}
+
+/* En-tête */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:3px solid var(--accent);
+  padding-block:14px 12px;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.brand{display:flex;flex-direction:column;gap:2px}
+.brand small{color:var(--muted);font-size:.82rem}
+.month{display:flex;align-items:center;gap:6px}
+.month .cur{font-family:var(--f-display);font-weight:700;font-size:1.1rem;min-width:9.5em;text-align:center;text-transform:capitalize}
+.sync{font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.dot.on{background:var(--ok)} .dot.local{background:var(--warn)}
+
+/* Bandeau synthèse */
+.totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.totals>div{background:var(--surface);padding:12px 16px;display:flex;flex-direction:column;gap:2px}
+.totals .v{font-family:var(--f-mono);font-size:1.35rem;font-weight:500}
+.totals .v.warn{color:var(--warn)} .totals .v.bad{color:var(--bad)}
+
+/* Mandats */
+.mandates{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.mcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.mhead{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.mhead h3{font-size:1rem}
+.pill{font-size:.72rem;padding:2px 8px;border-radius:99px;border:1px solid currentColor;white-space:nowrap;font-weight:600}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.bad{color:var(--bad)} .pill.info{color:var(--info)}
+.big{display:flex;align-items:baseline;gap:6px}
+.big .num{font-size:1.9rem;font-weight:500;line-height:1.1}
+.bar{height:10px;border-radius:5px;background:var(--bar-track);position:relative;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;left:0;background:var(--bar)}
+.bar i.r{background:var(--bar-report)}
+.bar b{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--fg);opacity:.55}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:.86rem}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.alert{font-size:.84rem;padding:8px 10px;border-radius:var(--r);background:var(--sunk);border-left:3px solid var(--warn)}
+.alert.bad{border-left-color:var(--bad)}
+
+/* Grille saisie / relevé */
+.cols{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:860px){.cols{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.tabs{display:flex;gap:4px;background:var(--sunk);padding:3px;border-radius:var(--r)}
+.tabs button{flex:1;border:0;background:transparent;padding:6px 8px;border-radius:4px;cursor:pointer;color:var(--muted);font-weight:500}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+form{display:flex;flex-direction:column;gap:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f label{font-size:.8rem;color:var(--muted);font-weight:500}
+input[type=text],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;min-width:0}
+textarea{resize:vertical;min-height:60px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:.88rem}
+.check input{margin-top:3px;accent-color:var(--accent)}
+.hint{font-size:.8rem;color:var(--muted)}
+.err{color:var(--bad);font-size:.85rem;min-height:1.2em}
+
+/* Relevé */
+.listhead{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center}
+.tablewrap{overflow-x:auto;margin:0 -18px;padding:0 18px}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.h{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.cess td{background:var(--sunk)}
+.tag{display:inline-block;font-size:.72rem;padding:1px 6px;border-radius:3px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.tag.imp{background:transparent;border:1px solid var(--accent);color:var(--accent)}
+.empty{padding:28px 12px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:6px;align-items:center}
+.empty strong{color:var(--fg);font-family:var(--f-display)}
+.actions{display:flex;gap:2px;justify-content:flex-end;white-space:nowrap}
+
+/* Historique */
+.hist td,.hist th{text-align:right} .hist td:first-child,.hist th:first-child{text-align:left}
+.hist tr.cur td{font-weight:600}
+
+/* Paramètres */
+details.settings{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0 18px}
+details.settings summary{cursor:pointer;padding:14px 0;font-family:var(--f-display);font-weight:700}
+.mrow{display:grid;grid-template-columns:minmax(0,2fr) 90px minmax(0,1.3fr) auto auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+@media (max-width:640px){.mrow{grid-template-columns:1fr 1fr}.mrow .f:first-child{grid-column:1/-1}}
+.legal{font-size:.84rem;color:var(--muted);max-width:75ch;display:flex;flex-direction:column;gap:6px;padding-bottom:16px}
+.legal b{color:var(--fg)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:var(--r);font-size:.9rem;z-index:20;max-width:calc(100% - 32px)}
+.confirm{display:flex;gap:6px;align-items:center;font-size:.82rem}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .3s ease}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Carnet de délégation</h1>
+      <small>Crédit d'heures, report, mutualisation, heures non imputables</small>
+    </div>
+    <div class="month">
+      <button class="btn small" id="prev" aria-label="Mois précédent">‹</button>
+      <span class="cur" id="curMonth">—</span>
+      <button class="btn small" id="next" aria-label="Mois suivant">›</button>
+      <button class="btn ghost small" id="today">Ce mois</button>
+    </div>
+    <div class="sync"><span class="dot" id="syncDot"></span><span id="syncTxt">Connexion…</span></div>
+  </header>
+
+  <section class="totals" id="totals" aria-label="Synthèse du mois"></section>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <h2>Crédit par mandat</h2>
+    <div class="mandates" id="mandates"></div>
+  </section>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="formTitle">
+      <h2 id="formTitle">Saisir</h2>
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tabEntry" aria-selected="true">Heures</button>
+        <button role="tab" id="tabCess" aria-selected="false">Mutualisation</button>
+      </div>
+
+      <form id="entryForm" novalidate>
+        <div class="row">
+          <div class="f"><label for="eDate">Date</label><input type="date" id="eDate" required></div>
+          <div class="f"><label for="eMandate">Mandat</label><select id="eMandate"></select></div>
+        </div>
+        <div class="row3">
+          <div class="f"><label for="eStart">Début</label><input type="time" id="eStart"></div>
+          <div class="f"><label for="eEnd">Fin</label><input type="time" id="eEnd"></div>
+          <div class="f"><label for="eDur">Durée (h:mm)</label><input type="text" id="eDur" inputmode="numeric" placeholder="3:30"></div>
+        </div>
+        <div class="f"><label for="eNature">Nature</label><select id="eNature"></select>
+          <span class="hint" id="natHint"></span></div>
+        <div class="f"><label for="eNote">Note personnelle (facultatif)</label>
+          <textarea id="eNote" placeholder="Ex. : tournée établissement, préparation CSE, accompagnement d'un agent…"></textarea>
+          <span class="hint">L'employeur ne peut pas exiger de justification préalable de l'usage des heures. Cette note reste privée.</span></div>
+        <label class="check"><input type="checkbox" id="eRest"> <span>Effectuées hors temps de travail (repos, RP, en dehors du roulement) : à récupérer ou à payer</span></label>
+        <label class="check"><input type="checkbox" id="eBon" checked> <span>Bon / demande d'absence déposé dans les délais</span></label>
+        <div class="err" id="eErr" role="alert"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn primary" type="submit" id="eSubmit">Ajouter</button>
+          <button class="btn" type="button" id="eCancel" hidden>Annuler la modification</button>
+        </div>
+      </form>
+
+      <form id="cessForm" novalidate hidden>
+        <p class="hint" style="margin:0">Heures de crédit cédées à un autre élu ou reçues de lui, pour le mois affiché (art. R2315-6 C. trav.).</p>
+        <div class="row">
+          <div class="f"><label for="cDir">Sens</label>
+            <select id="cDir"><option value="in">Reçues</option><option value="out">Cédées</option></select></div>
+          <div class="f"><label for="cMandate">Mandat</label><select id="cMandate"></select></div>
+        </div>
+        <div class="row">
+          <div class="f"><label for="cDur">Heures (h:mm)</label><input type="text" id="cDur" inputmode="numeric" placeholder="4:00"></div>
+          <div class="f"><label for="cWho">Élu concerné</label><input type="text" id="cWho" placeholder="Nom de l'élu"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="cInfo" checked> <span>Employeur informé par écrit au moins 8 jours avant</span></label>
+        <div class="err" id="cErr" role="alert"></div>
+        <div><button class="btn primary" type="submit">Enregistrer la mutualisation</button></div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="listTitle">
+      <div class="listhead">
+        <h2 id="listTitle">Relevé du mois</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <select id="filter" aria-label="Filtrer par mandat" style="width:auto"></select>
+          <button class="btn small" id="csvMonth">Exporter le mois (CSV)</button>
+        </div>
+      </div>
+      <div class="tablewrap"><table id="list"></table></div>
+      <div id="listEmpty" class="empty" hidden>
+        <strong>Aucune heure saisie ce mois-ci</strong>
+        <span>Ajoutez une première ligne avec le formulaire : date, mandat, horaires ou durée.</span>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="histTitle">
+    <div class="listhead">
+      <h2 id="histTitle">12 derniers mois</h2>
+      <button class="btn small" id="csvAll">Exporter tout (CSV)</button>
+    </div>
+    <div class="tablewrap"><table class="hist" id="hist"></table></div>
+    <p class="hint" style="margin:0">Imputé = heures décomptées du crédit. Report = heures non utilisées encore mobilisables. Hors crédit = réunions, enquêtes, formation et trajets non décomptés.</p>
+  </section>
+
+  <details class="settings" id="settings">
+    <summary>Mes mandats et sauvegarde</summary>
+    <div id="mrows"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 0">
+      <button class="btn small" id="addMandate">Ajouter un mandat</button>
+      <button class="btn small primary" id="saveMandates">Enregistrer les mandats</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:4px 0 16px;border-top:1px solid var(--line);padding-top:12px">
+      <span class="label">Sauvegarde</span>
+      <button class="btn small" id="jsonExport">Télécharger une sauvegarde (JSON)</button>
+      <label class="btn small" for="jsonImport" style="display:inline-block">Restaurer une sauvegarde</label>
+      <input type="file" id="jsonImport" accept="application/json,.json" hidden>
+    </div>
+    <div class="legal">
+      <span><b>Les crédits proposés par défaut sont indicatifs.</b> Ils reprennent les minima du Code du travail. Les accords d'entreprise (droit syndical, CSE, CSSCT, représentants de proximité) prévoient souvent davantage : ajustez chaque mandat à votre accord.</span>
+      <span><b>Report (R2315-5)</b> : les heures non utilisées d'un élu CSE se reportent dans la limite de 12 mois, sans dépasser dans un mois 1,5 fois le crédit mensuel.</span>
+      <span><b>Mutualisation (R2315-6)</b> : un titulaire peut céder des heures à un autre élu, sans que celui-ci dépasse 1,5 fois le crédit d'un titulaire, avec information écrite de l'employeur 8 jours avant.</span>
+      <span><b>Hors crédit (L2315-11)</b> : réunions du CSE et de ses commissions, enquêtes AT/MP ou risque grave, recherche de mesures préventives en cas de danger grave et imminent. Ces heures sont payées comme temps de travail et ne sont pas décomptées.</span>
+      <span><b>Heures prises sur le repos</b> : elles doivent être payées en heures supplémentaires ou récupérées. Vérifiez-les sur le bulletin de paie.</span>
+    </div>
+  </details>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const NATURES=[
+  {id:"imp",label:"Heures de délégation (imputées sur le crédit)",imp:true,hint:"Décomptées du crédit mensuel du mandat."},
+  {id:"reu",label:"Réunion à l'initiative de la direction",imp:false,hint:"CSE, CSSCT, commissions, réunions convoquées : non décomptées (L2315-11)."},
+  {id:"enq",label:"Enquête AT/MP ou danger grave et imminent",imp:false,hint:"Non décomptées du crédit (L2315-11)."},
+  {id:"for",label:"Formation (SSCT, économique, syndicale)",imp:false,hint:"Temps de formation des élus : payé comme temps de travail, non décompté."},
+  {id:"tra",label:"Trajet vers une réunion convoquée",imp:false,hint:"Temps de trajet excédant le trajet habituel : rémunéré comme temps de travail."},
+  {id:"exc",label:"Circonstances exceptionnelles (au-delà du crédit)",imp:false,hint:"Dépassement justifié par des circonstances exceptionnelles : à faire valoir auprès de la direction."}
+];
+const NAT=Object.fromEntries(NATURES.map(n=>[n.id,n]));
+const DEFAULT_MANDATES=[
+  {id:"m_cse",name:"Élu titulaire CSE",credit:24,report:true},
+  {id:"m_ds",name:"Délégué syndical",credit:24,report:false},
+  {id:"m_cssct",name:"Membre CSSCT",credit:0,report:false}
+];
+const $=s=>document.getElementById(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+/* ---------- temps ---------- */
+function fmt(h,signed){ if(h==null||isNaN(h))return "—"; const neg=h<-1e-9; let m=Math.round(Math.abs(h)*60);
+  const s=Math.floor(m/60)+" h "+String(m%60).padStart(2,"0"); return (neg?"−":(signed&&h>1e-9?"+":""))+s; }
+function parseDur(s){ s=String(s||"").trim().replace(",","."); if(!s)return null;
+  let m=s.match(/^(\d{1,3})\s*[:hH]\s*(\d{0,2})$/); if(m)return +m[1]+(+(m[2]||0))/60;
+  m=s.match(/^\d+(\.\d+)?$/); if(m)return +s; return NaN; }
+function minutes(t){const [a,b]=t.split(":").map(Number);return a*60+b;}
+const mk=d=>d.slice(0,7);
+function addMonth(k,n){let [y,m]=k.split("-").map(Number);m+=n;y+=Math.floor((m-1)/12);m=((m-1)%12+12)%12+1;return y+"-"+String(m).padStart(2,"0");}
+function mIdx(k){const [y,m]=k.split("-").map(Number);return y*12+m-1;}
+function monthLabel(k,short){const [y,m]=k.split("-").map(Number);return new Date(y,m-1,1).toLocaleDateString("fr-FR",short?{month:"short",year:"2-digit"}:{month:"long",year:"numeric"});}
+function todayISO(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+
+/* ---------- état ---------- */
+const state={mandates:DEFAULT_MANDATES.map(m=>({...m})),items:new Map(),month:mk(todayISO()),editing:null,filter:"all"};
+
+/* ---------- stockage : db privé du compte, sinon navigateur ---------- */
+const LS="carnet-delegation-v1";
+const store={mode:"none",col:null,
+  async put(id,obj){ if(this.mode==="db"){await this.col.doc(id).set(obj);} else this.saveLocal(); },
+  async del(id){ if(this.mode==="db"){await this.col.doc(id).delete();} else this.saveLocal(); },
+  saveLocal(){ try{localStorage.setItem(LS,JSON.stringify({mandates:state.mandates,items:[...state.items.values()]}));}catch(e){} },
+  loadLocal(){ try{const d=JSON.parse(localStorage.getItem(LS)||"null"); if(d){ if(d.mandates?.length)state.mandates=d.mandates; (d.items||[]).forEach(i=>state.items.set(i.id,i)); }}catch(e){} }
+};
+function setSync(mode,txt){ $("syncDot").className="dot "+(mode==="db"?"on":mode==="local"?"local":""); $("syncTxt").textContent=txt; }
+function goLocal(reason){ if(store.mode==="db")return; store.mode="local"; store.loadLocal();
+  setSync("local",reason||"Enregistré dans ce navigateur uniquement"); render(); }
+
+async function initStore(){
+  store.loadLocal(); render(); setSync("","Connexion à votre espace…");
+  const timer=setTimeout(()=>goLocal("Hors ligne : enregistré dans ce navigateur"),10000);
+  let db=null,user=null;
+  try{ if(window.claude?.use){ [db,user]=await Promise.all([window.claude.use("db"),window.claude.use("user")]); } }catch(e){}
+  if(!db||!user){ clearTimeout(timer); goLocal(); return; }
+  let id=null; try{ id=await user.id(); }catch(e){}
+  if(!id){ clearTimeout(timer); goLocal(); return; }
+  store.col=db.collection("data/users/"+id);
+  store.col.onSnapshot(snap=>{
+    clearTimeout(timer);
+    const wasLocal=store.mode!=="db"; const local=wasLocal?[...state.items.values()]:[]; const localM=state.mandates;
+    store.mode="db"; state.items=new Map(); let settings=null;
+    snap.docs.forEach(d=>{const v=d.data(); if(!v)return; if(d.id==="settings")settings=v; else if(v.kind)state.items.set(d.id,{...v,id:d.id});});
+    if(settings?.mandates?.length) state.mandates=settings.mandates;
+    else state.mandates=localM;
+    // première connexion : remonter ce qui avait été saisi dans le navigateur
+    if(wasLocal && snap.empty && local.length){ local.forEach(i=>{state.items.set(i.id,i); store.col.doc(i.id).set(stripId(i)).catch(()=>{});});
+      store.col.doc("settings").set({mandates:state.mandates}).catch(()=>{}); toast("Saisies du navigateur transférées dans votre espace"); }
+    setSync("db","Enregistré dans votre espace privé");
+    render();
+  },err=>{ clearTimeout(timer); store.mode="none"; goLocal(err?.code==="not_granted"?"Accès refusé : enregistré dans ce navigateur":"Espace indisponible : enregistré dans ce navigateur"); });
+}
+const stripId=o=>{const {id,...r}=o;return r;};
+async function saveItem(item){ state.items.set(item.id,item); render(); try{await store.put(item.id,stripId(item));}catch(e){toast("Échec de l'enregistrement : "+(e?.message||"réessayez"));} }
+async function removeItem(id){ state.items.delete(id); render(); try{await store.del(id);}catch(e){toast("Échec de la suppression");} }
+async function saveMandates(){ render(); try{ if(store.mode==="db") await store.col.doc("settings").set({mandates:state.mandates}); else store.saveLocal(); toast("Mandats enregistrés"); }catch(e){toast("Échec de l'enregistrement des mandats");} }
+
+/* ---------- calcul du crédit ---------- */
+function compute(){
+  const items=[...state.items.values()];
+  const res={}; // res[mandateId][monthKey]
+  const months=items.map(i=>i.kind==="cess"?i.month:mk(i.date)).concat([state.month,addMonth(mk(todayISO()),0)]);
+  const start=months.reduce((a,b)=>a<b?a:b, state.month);
+  const end=months.reduce((a,b)=>a>b?a:b, state.month);
+  for(const m of state.mandates){
+    res[m.id]={}; let pool=[];
+    for(let k=start; k<=end; k=addMonth(k,1)){
+      const i=mIdx(k);
+      const mine=items.filter(x=>x.mandate===m.id && (x.kind==="cess"?x.month===k:mk(x.date)===k));
+      const entries=mine.filter(x=>x.kind==="entry");
+      const cin=mine.filter(x=>x.kind==="cess"&&x.dir==="in").reduce((s,x)=>s+x.hours,0);
+      const cout=mine.filter(x=>x.kind==="cess"&&x.dir==="out").reduce((s,x)=>s+x.hours,0);
+      const base=+m.credit||0, credit=Math.max(0,base+cin-cout);
+      const used=entries.filter(x=>NAT[x.nature]?.imp).reduce((s,x)=>s+x.hours,0);
+      const other=entries.filter(x=>!NAT[x.nature]?.imp).reduce((s,x)=>s+x.hours,0);
+      const rest=entries.filter(x=>x.rest).reduce((s,x)=>s+x.hours,0);
+      pool=pool.filter(p=>p.i>=i-12 && p.h>1e-9);
+      const poolAvail=m.report?Math.min(pool.reduce((s,p)=>s+p.h,0), base*0.5):0;
+      let fromReport=0, over=0;
+      if(used>credit){ let need=used-credit; let cap=m.report?base*0.5:0;
+        for(const p of pool){ if(need<=1e-9||cap<=1e-9)break; const t=Math.min(p.h,need,cap); p.h-=t; need-=t; cap-=t; fromReport+=t; }
+        over=need; }
+      else if(m.report && credit-used>1e-9) pool.push({i,h:credit-used});
+      res[m.id][k]={base,cin,cout,credit,used,other,rest,fromReport,over,poolAvail,
+        poolAfter:m.report?pool.filter(p=>p.i>i-12).reduce((s,p)=>s+p.h,0):0,
+        remaining:credit+ (m.report?poolAvail:0) - used, mutCap:cin>0 && credit>base*1.5+1e-9, count:entries.length};
+    }
+  }
+  return res;
+}
+
+/* ---------- rendu ---------- */
+function render(){
+  const R=compute(), k=state.month;
+  $("curMonth").textContent=monthLabel(k);
+  // sélecteurs de mandat
+  const opts=state.mandates.map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
+  for(const id of ["eMandate","cMandate"]){ const v=$(id).value; $(id).innerHTML=opts; if(state.mandates.some(m=>m.id===v))$(id).value=v; }
+  const fv=state.filter; $("filter").innerHTML=`<option value="all">Tous les mandats</option>`+opts; $("filter").value=state.mandates.some(m=>m.id===fv)?fv:"all";
+
+  // synthèse
+  let used=0,other=0,rest=0,over=0,remaining=0,unchecked=0;
+  for(const m of state.mandates){const r=R[m.id][k]; if(!r)continue; used+=r.used; other+=r.other; rest+=r.rest; over+=r.over; remaining+=Math.max(0,r.remaining);}
+  const curIdx=mIdx(mk(todayISO()));
+  for(const it of state.items.values()) if(it.kind==="entry" && it.rest && !it.paid && mIdx(mk(it.date))<curIdx) unchecked+=it.hours;
+  $("totals").innerHTML=[
+    ["Imputé ce mois",fmt(used),""],["Encore disponible",fmt(remaining),""],
+    ["Hors crédit",fmt(other),""],["Pris sur repos",fmt(rest),rest>0?"warn":""],
+    ["Dépassement",fmt(over),over>0?"bad":""],["Repos à vérifier en paie",fmt(unchecked),unchecked>0?"warn":""]
+  ].map(([l,v,c])=>`<div><span class="label">${l}</span><span class="v ${c}">${v}</span></div>`).join("");
+
+  // cartes mandats
+  $("mandates").innerHTML=state.mandates.map(m=>{
+    const r=R[m.id][k]; const cap=r.credit+(m.report?r.poolAvail:0);
+    const scale=Math.max(cap,r.used,0.0001);
+    const wBase=Math.min(r.used,r.credit)/scale*100, wRep=r.fromReport/scale*100, wOver=r.over/scale*100;
+    let pill; if(r.base===0&&r.credit===0) pill=`<span class="pill info">Sans crédit fixe</span>`;
+    else if(r.over>1e-9) pill=`<span class="pill bad">Dépassé</span>`;
+    else if(r.used>r.credit+1e-9) pill=`<span class="pill warn">Sur report</span>`;
+    else if(cap>0 && r.used/cap>=.8) pill=`<span class="pill warn">${Math.round(r.used/cap*100)} %</span>`;
+    else pill=`<span class="pill ok">${cap>0?Math.round(r.used/cap*100)+" %":"OK"}</span>`;
+    const alerts=[];
+    if(r.over>1e-9) alerts.push(`<div class="alert bad">${fmt(r.over)} au-delà du crédit${m.report?" et du report":""}. À couvrir par des circonstances exceptionnelles ou une mutualisation, sinon la direction peut contester le paiement.</div>`);
+    if(r.mutCap) alerts.push(`<div class="alert">Avec les heures reçues, le crédit dépasse 1,5 fois le crédit mensuel (R2315-6).</div>`);
+    return `<article class="mcard">
+      <div class="mhead"><h3>${esc(m.name)}</h3>${pill}</div>
+      <div class="big"><span class="num">${fmt(Math.max(0,r.remaining))}</span><span class="muted">restantes</span></div>
+      <div class="bar" role="img" aria-label="${fmt(r.used)} utilisées sur ${fmt(cap)}">
+        <i style="width:${wBase}%"></i><i class="r" style="left:${wBase}%;width:${wRep}%"></i><i style="left:${wBase+wRep}%;width:${wOver}%;opacity:.55"></i>
+        ${m.report&&r.poolAvail>0&&cap>0?`<b style="left:${Math.min(99.5,r.credit/scale*100)}%" title="Fin du crédit du mois"></b>`:""}
+      </div>
+      <dl class="kv">
+        <dt>Crédit du mois</dt><dd>${fmt(r.base)}</dd>
+        ${r.cin||r.cout?`<dt>Mutualisation</dt><dd>${fmt(r.cin-r.cout,true)}</dd>`:""}
+        ${m.report?`<dt>Report mobilisable</dt><dd>${fmt(r.poolAvail)}</dd>`:""}
+        <dt>Imputé</dt><dd>${fmt(r.used)}</dd>
+        ${r.fromReport?`<dt>dont pris sur report</dt><dd>${fmt(r.fromReport)}</dd>`:""}
+        <dt>Hors crédit</dt><dd>${fmt(r.other)}</dd>
+        ${m.report?`<dt>Report après ce mois</dt><dd>${fmt(r.poolAfter)}</dd>`:""}
+      </dl>${alerts.join("")}</article>`;
+  }).join("");
+
+  // relevé
+  const mname=Object.fromEntries(state.mandates.map(m=>[m.id,m.name]));
+  let rows=[...state.items.values()].filter(i=>(i.kind==="cess"?i.month:mk(i.date))===k && (state.filter==="all"||i.mandate===state.filter));
+  rows.sort((a,b)=>(a.kind==="cess"?"0":a.date+(a.start||"")).localeCompare(b.kind==="cess"?"0":b.date+(b.start||"")));
+  $("listEmpty").hidden=rows.length>0; $("list").hidden=!rows.length;
+  $("list").innerHTML=rows.length?`<thead><tr><th>Date</th><th>Mandat</th><th>Nature</th><th style="text-align:right">Durée</th><th></th></tr></thead><tbody>`+
+    rows.map(i=>{
+      if(i.kind==="cess") return `<tr class="cess"><td>Mois</td><td>${esc(mname[i.mandate]||"Mandat supprimé")}</td>
+        <td>Mutualisation ${i.dir==="in"?"reçue de":"cédée à"} ${esc(i.who||"—")}${i.informed?"":` <span class="tag">employeur non informé</span>`}</td>
+        <td class="h">${fmt(i.dir==="in"?i.hours:-i.hours,true)}</td><td class="actions">${delBtn(i.id)}</td></tr>`;
+      const n=NAT[i.nature]||NATURES[0]; const d=new Date(i.date+"T12:00");
+      return `<tr><td style="white-space:nowrap">${d.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric"})}${i.start?`<br><span class="muted num" style="font-size:.8rem">${i.start}–${i.end||""}</span>`:""}</td>
+        <td>${esc(mname[i.mandate]||"Mandat supprimé")}</td>
+        <td><span class="tag ${n.imp?"imp":""}">${n.imp?"Imputé":"Hors crédit"}</span> ${esc(n.label.replace(/ \(.*\)$/,""))}
+          ${i.note?`<br><span class="muted" style="font-size:.82rem">${esc(i.note)}</span>`:""}
+          ${i.rest?`<br><label class="check" style="font-size:.8rem"><input type="checkbox" data-paid="${esc(i.id)}" ${i.paid?"checked":""}> Sur repos : ${i.paid?"vérifié en paie":"à vérifier en paie"}</label>`:""}
+          ${i.bon===false?` <span class="tag">bon non déposé</span>`:""}</td>
+        <td class="h">${fmt(i.hours)}</td>
+        <td class="actions"><button class="btn ghost small" data-edit="${esc(i.id)}" aria-label="Modifier">Modifier</button>${delBtn(i.id)}</td></tr>`;
+    }).join("")+"</tbody>":"";
+
+  // historique 12 mois
+  const months=[];for(let j=11;j>=0;j--)months.push(addMonth(k,-j));
+  const ms=state.filter==="all"?state.mandates:state.mandates.filter(m=>m.id===state.filter);
+  $("hist").innerHTML=`<thead><tr><th>Mois</th><th>Crédit</th><th>Imputé</th><th>Report dispo.</th><th>Hors crédit</th><th>Sur repos</th><th>Dépassement</th></tr></thead><tbody>`+
+    months.map(mo=>{let c=0,u=0,p=0,o=0,r=0,ov=0; for(const m of ms){const x=R[m.id][mo]; if(!x)continue; c+=x.credit;u+=x.used;p+=x.poolAvail;o+=x.other;r+=x.rest;ov+=x.over;}
+      return `<tr class="${mo===k?"cur":""}"><td style="text-transform:capitalize">${monthLabel(mo,true)}</td><td class="num">${fmt(c)}</td><td class="num">${fmt(u)}</td><td class="num">${fmt(p)}</td><td class="num">${fmt(o)}</td><td class="num">${fmt(r)}</td><td class="num" style="${ov>0?"color:var(--bad)":""}">${fmt(ov)}</td></tr>`;}).join("")+"</tbody>";
+
+  renderMandateRows();
+}
+function delBtn(id){ return pendingDel===id
+  ? `<span class="confirm">Supprimer ?<button class="btn small" data-delok="${esc(id)}">Oui</button><button class="btn ghost small" data-delno>Non</button></span>`
+  : `<button class="btn ghost small" data-del="${esc(id)}" aria-label="Supprimer">Suppr.</button>`; }
+let pendingDel=null;
+
+/* ---------- paramètres des mandats ---------- */
+let draftMandates=null;
+function renderMandateRows(){
+  if(document.activeElement && $("mrows").contains(document.activeElement)) return;
+  const list=draftMandates||state.mandates;
+  $("mrows").innerHTML=list.map((m,i)=>`<div class="mrow" data-i="${i}">
+    <div class="f"><label for="mn${i}">Intitulé du mandat</label><input type="text" id="mn${i}" value="${esc(m.name)}" data-k="name"></div>
+    <div class="f"><label for="mc${i}">Crédit/mois (h)</label><input type="number" min="0" step="0.5" id="mc${i}" value="${m.credit}" data-k="credit"></div>
+    <label class="check" style="align-self:end;padding-bottom:8px"><input type="checkbox" id="mr${i}" data-k="report" ${m.report?"checked":""}> Report sur 12 mois</label>
+    <span></span>
+    <button class="btn ghost small" data-rm="${i}" style="align-self:end">Retirer</button></div>`).join("");
+}
+$("mrows").addEventListener("input",e=>{const row=e.target.closest(".mrow"); if(!row)return; draftMandates=draftMandates||state.mandates.map(m=>({...m}));
+  const m=draftMandates[+row.dataset.i], k=e.target.dataset.k; m[k]=k==="report"?e.target.checked:k==="credit"?Math.max(0,+e.target.value||0):e.target.value;});
+$("mrows").addEventListener("click",e=>{const b=e.target.closest("[data-rm]"); if(!b)return; draftMandates=draftMandates||state.mandates.map(m=>({...m}));
+  const m=draftMandates[+b.dataset.rm]; const used=[...state.items.values()].some(i=>i.mandate===m.id);
+  if(used){toast("Ce mandat a des heures saisies : renommez-le plutôt que de le retirer.");return;}
+  draftMandates.splice(+b.dataset.rm,1); renderMandateRows();});
+$("addMandate").onclick=()=>{draftMandates=draftMandates||state.mandates.map(m=>({...m})); draftMandates.push({id:uid("m_"),name:"Nouveau mandat",credit:0,report:false}); renderMandateRows(); $("mn"+(draftMandates.length-1)).focus();};
+$("saveMandates").onclick=()=>{ if(draftMandates){ const bad=draftMandates.find(m=>!m.name.trim()); if(bad){toast("Chaque mandat doit avoir un intitulé");return;}
+  state.mandates=draftMandates; draftMandates=null; } document.activeElement?.blur(); saveMandates(); };
+
+/* ---------- formulaire heures ---------- */
+$("eNature").innerHTML=NATURES.map(n=>`<option value="${n.id}">${esc(n.label)}</option>`).join("");
+const natHint=()=>{$("natHint").textContent=NAT[$("eNature").value].hint;}; $("eNature").onchange=natHint; natHint();
+function autoDur(){ const s=$("eStart").value,e=$("eEnd").value; if(s&&e){ let d=minutes(e)-minutes(s); if(d<0)d+=1440; $("eDur").value=Math.floor(d/60)+":"+String(d%60).padStart(2,"0"); } }
+$("eStart").onchange=autoDur; $("eEnd").onchange=autoDur;
+function resetEntry(){ state.editing=null; $("entryForm").reset(); $("eBon").checked=true; $("eDate").value=defaultDate(); $("eSubmit").textContent="Ajouter"; $("eCancel").hidden=true; $("eErr").textContent=""; natHint(); }
+function defaultDate(){ const t=todayISO(); return mk(t)===state.month?t:state.month+"-01"; }
+$("eCancel").onclick=resetEntry;
+$("entryForm").addEventListener("submit",e=>{e.preventDefault();
+  const date=$("eDate").value, h=parseDur($("eDur").value);
+  if(!date){$("eErr").textContent="Indiquez la date.";return;}
+  if(!state.mandates.length){$("eErr").textContent="Créez d'abord un mandat dans « Mes mandats ».";return;}
+  if(h==null||isNaN(h)||h<=0){$("eErr").textContent="Indiquez une durée (ex. 3:30) ou des heures de début et de fin.";return;}
+  if(h>24){$("eErr").textContent="La durée dépasse 24 h : scindez la saisie par jour.";return;}
+  const prev=state.editing?state.items.get(state.editing):null;
+  const item={id:state.editing||uid("e_"),kind:"entry",date,mandate:$("eMandate").value,nature:$("eNature").value,hours:Math.round(h*60)/60,
+    start:$("eStart").value||"",end:$("eEnd").value||"",note:$("eNote").value.trim(),rest:$("eRest").checked,bon:$("eBon").checked,
+    paid:prev?.paid||false,createdAt:prev?.createdAt||new Date().toISOString()};
+  const wasEdit=!!state.editing; state.month=mk(date); saveItem(item); resetEntry(); toast(wasEdit?"Ligne modifiée":"Heures ajoutées : "+fmt(item.hours));
+});
+
+/* ---------- formulaire mutualisation ---------- */
+$("cessForm").addEventListener("submit",e=>{e.preventDefault();
+  const h=parseDur($("cDur").value);
+  if(h==null||isNaN(h)||h<=0){$("cErr").textContent="Indiquez le nombre d'heures (ex. 4:00).";return;}
+  if(!state.mandates.length){$("cErr").textContent="Créez d'abord un mandat.";return;}
+  $("cErr").textContent="";
+  saveItem({id:uid("c_"),kind:"cess",month:state.month,mandate:$("cMandate").value,dir:$("cDir").value,hours:Math.round(h*60)/60,who:$("cWho").value.trim(),informed:$("cInfo").checked,createdAt:new Date().toISOString()});
+  $("cessForm").reset(); $("cInfo").checked=true; toast("Mutualisation enregistrée pour "+monthLabel(state.month));
+});
+function tab(which){ const ent=which==="entry"; $("tabEntry").setAttribute("aria-selected",ent); $("tabCess").setAttribute("aria-selected",!ent); $("entryForm").hidden=!ent; $("cessForm").hidden=ent; }
+$("tabEntry").onclick=()=>tab("entry"); $("tabCess").onclick=()=>tab("cess");
+
+/* ---------- actions du relevé ---------- */
+$("list").addEventListener("click",e=>{
+  const ed=e.target.closest("[data-edit]"), d=e.target.closest("[data-del]"), ok=e.target.closest("[data-delok]"), no=e.target.closest("[data-delno]");
+  if(ed){ const i=state.items.get(ed.dataset.edit); if(!i)return; tab("entry"); state.editing=i.id;
+    $("eDate").value=i.date; $("eMandate").value=i.mandate; $("eNature").value=i.nature; $("eStart").value=i.start||""; $("eEnd").value=i.end||"";
+    $("eDur").value=fmt(i.hours).replace(" h ",":"); $("eNote").value=i.note||""; $("eRest").checked=!!i.rest; $("eBon").checked=i.bon!==false;
+    $("eSubmit").textContent="Enregistrer la modification"; $("eCancel").hidden=false; natHint(); $("eDate").focus(); }
+  if(d){ pendingDel=d.dataset.del; render(); }
+  if(no){ pendingDel=null; render(); }
+  if(ok){ const id=ok.dataset.delok; pendingDel=null; if(state.editing===id)resetEntry(); removeItem(id); toast("Ligne supprimée"); }
+});
+$("list").addEventListener("change",e=>{const c=e.target.closest("[data-paid]"); if(!c)return; const i=state.items.get(c.dataset.paid); if(i) saveItem({...i,paid:c.checked});});
+$("filter").onchange=e=>{state.filter=e.target.value; render();};
+
+/* ---------- navigation ---------- */
+const go=n=>{state.month=addMonth(state.month,n); pendingDel=null; if(!state.editing)$("eDate").value=defaultDate(); render();};
+$("prev").onclick=()=>go(-1); $("next").onclick=()=>go(1);
+$("today").onclick=()=>{state.month=mk(todayISO()); if(!state.editing)$("eDate").value=defaultDate(); render();};
+
+/* ---------- exports ---------- */
+function csv(filterMonth){
+  const mname=Object.fromEntries(state.mandates.map(m=>[m.id,m.name]));
+  const q=v=>`"${String(v??"").replace(/"/g,'""')}"`; const hh=h=>String(Math.round(h*100)/100).replace(".",",");
+  const lines=[["Date","Mois","Mandat","Type","Nature","Imputé sur crédit","Début","Fin","Durée (h décimales)","Durée","Sur repos","Vérifié en paie","Bon déposé","Note / élu"].map(q).join(";")];
+  const rows=[...state.items.values()].filter(i=>!filterMonth||(i.kind==="cess"?i.month:mk(i.date))===filterMonth)
+    .sort((a,b)=>((a.kind==="cess"?a.month+"-00":a.date)+(a.start||"")).localeCompare((b.kind==="cess"?b.month+"-00":b.date)+(b.start||"")));
+  for(const i of rows){
+    if(i.kind==="cess") lines.push(["",i.month,mname[i.mandate]||"","Mutualisation",i.dir==="in"?"Heures reçues":"Heures cédées","","","",hh(i.dir==="in"?i.hours:-i.hours),fmt(i.dir==="in"?i.hours:-i.hours,true),"","",i.informed?"Employeur informé":"Employeur non informé",i.who].map(q).join(";"));
+    else { const n=NAT[i.nature]||NATURES[0]; lines.push([i.date,mk(i.date),mname[i.mandate]||"","Heures",n.label,n.imp?"Oui":"Non",i.start,i.end,hh(i.hours),fmt(i.hours),i.rest?"Oui":"Non",i.rest?(i.paid?"Oui":"Non"):"",i.bon===false?"Non":"Oui",i.note].map(q).join(";")); }
+  }
+  return "﻿"+lines.join("\r\n");
+}
+async function download(filename,data){
+  let dl=null; try{dl=await window.claude?.use?.("downloads");}catch(e){}
+  if(!dl){toast("Le téléchargement n'est pas disponible dans cette vue.");return;}
+  try{await dl.save({filename,data}); toast("Fichier prêt : "+filename);}catch(e){ if(e?.code!=="declined") toast("Téléchargement impossible : "+(e?.message||e?.code||"erreur")); }
+}
+$("csvMonth").onclick=()=>download(`delegation-${state.month}.csv`,csv(state.month));
+$("csvAll").onclick=()=>download(`delegation-complet-${todayISO()}.csv`,csv(null));
+$("jsonExport").onclick=()=>download(`sauvegarde-delegation-${todayISO()}.json`,JSON.stringify({app:"carnet-delegation",version:1,exportedAt:new Date().toISOString(),mandates:state.mandates,items:[...state.items.values()]},null,1));
+$("jsonImport").onchange=e=>{const f=e.target.files?.[0]; if(!f)return; const r=new FileReader();
+  r.onload=async()=>{ try{ const d=JSON.parse(r.result); if(d.app!=="carnet-delegation"||!Array.isArray(d.items))throw 0;
+      if(d.mandates?.length){ const ids=new Set(state.mandates.map(m=>m.id)); d.mandates.forEach(m=>{if(!ids.has(m.id))state.mandates.push(m);}); await saveMandates(); }
+      let n=0; for(const it of d.items){ if(!it.id||!it.kind)continue; state.items.set(it.id,it); n++; if(store.mode==="db") await store.col.doc(it.id).set(stripId(it)); }
+      if(store.mode!=="db")store.saveLocal(); render(); toast(n+" lignes restaurées");
+    }catch(err){ toast("Ce fichier n'est pas une sauvegarde du carnet."); } e.target.value=""; };
+  r.readAsText(f);};
+
+let tt; function toast(msg){const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(tt); tt=setTimeout(()=>t.hidden=true,3200);}
+
+$("eDate").value=defaultDate();
+initStore();
+})();
+</script>
